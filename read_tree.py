@@ -6,11 +6,36 @@ import root_numpy
 from root_numpy import tree2rec, root2rec, root2array
 
 from matplotlib import rc, rc_file
-rc_file('/home/alexshires/.config/matplotlib/matplotlibrc')
-rc('text', usetex=True)
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+
+def config_axes(plot, xlabel, ylabel):
+    rc_file('/home/alexshires/.config/matplotlib/matplotlibrc')
+    rc('text', usetex=True)
+    """ configures the axes such that styles are LHCb standard """
+    #TODO: make this the standard?
+    plot.draw() #creates axes
+    axes = plt.gca() # get axes
+    #configure offset
+    offset = axes.get_xaxis().get_offset_text()
+    if offset.get_text():
+        plot.xlabel("%s (%s)" % (xlabel, offset.get_text()),
+                    ha='right', x=1)
+        offset.set_visible(False)
+    else:
+        plot.xlabel(xlabel, ha='right', x=1)
+    plot.ylabel(ylabel, ha='right', y=1)
+    #configure ticks for 5x5
+    axes.xaxis.set_major_locator(LinearLocator(5))
+    axes.xaxis.set_minor_locator(LinearLocator(5))
+    axes.yaxis.set_major_locator(LinearLocator(5))
+    axes.yaxis.set_minor_locator(LinearLocator(5))
+    plot.minorticks_on()
+    # ready to be drawn again - passes back by reference
+    return axes
+
+
 
 #specfiy branches
 
@@ -118,6 +143,7 @@ def makeplots(dataset, plotname, dataset2=DataFrame(), norm=False):
 
 
 
+
 if __name__ == '__main__':
     #K*mumu
     #test converting to hdf5i --rootpy
@@ -133,9 +159,6 @@ if __name__ == '__main__':
                                          branches=totvars))
 
     print "Data"
-    print dataarr["B_M"]
-    print simarr["B_M"]
-
     #makeplots(simarr, "dataplots", bkgarr, True)
 
 
@@ -163,14 +186,30 @@ if __name__ == '__main__':
     os = np.ones(len(bkgtrain))
     zs = np.zeros(len(sigtrain))
     print "adding samples together"
-    tot = pandas.concat([sigtrain, bkgtrain])
-    mask = np.append(os, zs)
+    X_train = pandas.concat([sigtrain, bkgtrain])
+    y_train = np.append(os, zs)
     print "training"
-    base_ada.fit(tot, mask)
+    base_ada.fit(X=X_train, y=y_train)
+
+    os = np.ones(len(bkgtest))
+    zs = np.zeros(len(sigtest))
+    print "adding samples together"
+    X_test = pandas.concat([sigtest, bkgtest])
+    y_test = np.append(os, zs)
 
 
     sigoutput = base_ada.decision_function(X=sigtest)
     bkgoutput = base_ada.decision_function(X=bkgtest)
+    from sklearn.metrics import accuracy_score
+    test_errors = []
+    for te in base_ada.staged_predict(X_test):
+        test_errors.append(1.- accuracy_score(te, y_test))
+    ntrees = len(test_errors)
+    estimator_errors = base_ada.estimator_errors_[:ntrees]
+    estimator_weights = base_ada.estimator_weights_[:ntrees]
+
+    from matplotlib.ticker import LinearLocator
+
     with PdfPages("bdtplots.pdf") as pdf:
         xs, xe, ys, ye = get_hist(bkgoutput)
         plt.errorbar(xs, ys, xerr=xe, yerr=ye,
@@ -181,8 +220,22 @@ if __name__ == '__main__':
                      color='blue', fmt='.',
                      label='sig')
         plt.legend()
-        plt.xlabel("BDT decision")
+        config_axes(plt, "number of trees", "")
         pdf.savefig()
+        #decision tree control plots
+        plt.clf()
+        plt.plot(range(1, ntrees+1), test_errors)
+        config_axes(plt, "number of trees", "Test error")
+        pdf.savefig()
+        plt.clf()
+        plt.plot(range(1, ntrees+1), estimator_errors)
+        config_axes(plt, "number of trees", "BDT Error")
+        pdf.savefig()
+        plt.clf()
+        plt.plot(range(1, ntrees+1), estimator_weights)
+        config_axes(plt, "number of trees", "BDT Weight")
+        pdf.savefig()
+
 
 
 
