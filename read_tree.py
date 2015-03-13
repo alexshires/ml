@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 def config_axes(plot, xlabel, ylabel):
-    rc_file('/home/alexshires/.config/matplotlib/matplotlibrc')
+    #rc_file('/home/alexshires/.config/matplotlib/matplotlibrc')
     rc('text', usetex=True)
     """ configures the axes such that styles are LHCb standard """
     #TODO: make this the standard?
@@ -236,6 +236,14 @@ if __name__ == '__main__':
         config_axes(plt, "number of trees", "BDT Weight")
         pdf.savefig()
 
+    #print feature list
+    print "feature, ranking"
+    for f, v in zip(sigarr.columns.values.tolist(),
+            base_ada.feature_importances_):
+        print f, v
+
+    #plot BDT response v.s. variables
+    
 
 
 
